@@ -89,7 +89,9 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
+    float dynamic_priorety;
+    int nice;
+    int recent_cpu;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -131,7 +133,7 @@ typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
-void thread_set_priority (int);
+void  thread_set_priority (int);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
