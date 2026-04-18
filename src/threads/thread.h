@@ -139,5 +139,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
+void thread_mlfqs_update_current_thread(void);
+void thread_mlfqs_update_priorities(void);
+void thread_mlfqs_update_every_seccond(void);
 #endif /* threads/thread.h */

@@ -93,6 +93,7 @@ void thread_init(void)
   lock_init(&tid_lock);
   list_init(&ready_list);
   list_init(&all_list);
+
   load_avg = INT_TO_FP(0);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
@@ -179,7 +180,6 @@ tid_t thread_create(const char *name, int priority,
   /* Initialize thread. */
   init_thread(t, name, priority);
   tid = t->tid = allocate_tid();
-
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame(t, sizeof *kf);
   kf->eip = NULL;
@@ -463,6 +463,18 @@ init_thread(struct thread *t, const char *name, int priority)
   }
 
   t->magic = THREAD_MAGIC;
+  if (t == initial_thread) 
+    {
+      /* The very first thread gets 0 */
+      t->nice = 0;
+      t->recent_cpu = INT_TO_FP(0);
+    }
+  else 
+    {
+      /* All other threads inherit from the current running thread (Parent) */
+      t->nice = thread_current()->nice;
+      t->recent_cpu = thread_current()->recent_cpu;
+    }
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
@@ -493,6 +505,7 @@ next_thread_to_run(void)
   if (list_empty(&ready_list))
     return idle_thread;
   else
+
     return list_entry(list_pop_front(&ready_list), struct thread, elem);
 }
 
@@ -540,6 +553,8 @@ void thread_schedule_tail(struct thread *prev)
     palloc_free_page(prev);
   }
 }
+
+
 void thread_mlfqs_update_current_thread(void){
   struct thread *cur = thread_current();
   if (cur != idle_thread)
@@ -568,8 +583,12 @@ void thread_mlfqs_update_priorities(void)
       }
       
     }
+    if (!list_empty(&ready_list))
+    {
+      list_sort(&ready_list, cmp_thread_priority, NULL);
+    }
     
-  
+    
 }
 
 void thread_mlfqs_update_every_seccond(void){
@@ -579,16 +598,16 @@ void thread_mlfqs_update_every_seccond(void){
     ready_threads++;
   }
   load_avg = ADD(MULTIPLY(DIVIDE(INT_TO_FP(59), INT_TO_FP(60)), load_avg), MULTIPLY(DIVIDE(INT_TO_FP(1), INT_TO_FP(60)), INT_TO_FP(ready_threads)));
-    struct list_elem *e;
-    for ( e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  struct list_elem *e;
+  for ( e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry (e, struct thread, allelem);
+    if (t!=idle_thread)
     {
-      struct thread *t = list_entry (e, struct thread, allelem);
-      if (t!=idle_thread)
-      {
-        t->recent_cpu = ADD_FP_INT(MULTIPLY(DIVIDE(MULTIPLY_FP_INT(load_avg, 2), ADD_FP_INT(MULTIPLY_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
-      }
-      
+      t->recent_cpu = ADD_FP_INT(MULTIPLY(DIVIDE(MULTIPLY_FP_INT(load_avg, 2), ADD_FP_INT(MULTIPLY_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
     }
+    
+  }
 }
 /* Schedules a new process.  At entry, interrupts must be off and
    the running process's state must have been changed from
