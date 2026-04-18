@@ -71,6 +71,8 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+voidthread_test_preemption (void);
+
 bool compare_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 
   // Extract the thread from the elem
@@ -210,6 +212,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  /* Add this preemption check */
+  thread_test_preemption ();
+
   return tid;
 }
 
@@ -241,13 +246,18 @@ void
 thread_unblock (struct thread *t) 
 {
   enum intr_level old_level;
-
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  
+  list_insert_ordered (&ready_list, &t->elem, compare_thread_priority, NULL);
+  
   t->status = THREAD_READY;
+
+  /* Check if the unblocked thread should preempt the current one */
+  thread_test_preemption ();
+  
   intr_set_level (old_level);
 }
 
@@ -317,7 +327,9 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    /*insert in order instead of push_back */
+    list_insert_ordered (&ready_list, &cur->elem, compare_thread_priority, NULL);
+    
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -345,6 +357,9 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  
+  /*check if another thread is now higher priority */
+  thread_test_preemption ();
 }
 
 /* Returns the current thread's priority. */
@@ -587,6 +602,26 @@ allocate_tid (void)
 
   return tid;
 }
+
+/* Checks if the current thread should be preempted by a 
+   higher priority thread in the ready list. */
+void
+thread_test_preemption (void)
+{
+  if (!list_empty (&ready_list))
+    {
+      struct thread *top = list_entry (list_begin (&ready_list), struct thread, elem);
+      
+      if (thread_get_priority () < top->priority)
+        {
+          if (intr_context ())
+            intr_yield_on_return ();
+          else
+            thread_yield ();
+        }
+    }
+}
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
