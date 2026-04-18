@@ -14,3 +14,5 @@
 #define DIVIDE(x, y) (((int64_t) (x)) * F / (y))
 #define DIVIDE_FP_INT(x, n) ((x) / (n))
 #endif
+
+// wait sakr
