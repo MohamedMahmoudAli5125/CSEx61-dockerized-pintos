@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include <stdint.h>
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -71,7 +72,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-voidthread_test_preemption (void);
+void thread_test_preemption (void);
 
 bool compare_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 
@@ -356,7 +357,11 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  // thread_current ()->priority = new_priority;  /* This is the original line, but we need to update base_priority instead for donation purposes */
+  thread_current ()->base_priority = new_priority; 
+
+  //priority is the effective priority now , we deal with it till the donation is over and we update it back to the base priority after that
+  thread_update_priority (thread_current ()); /*This is the new line , after this , if there are not any donations ( or no donations greater than new base priority ) then the priority is updated normally */ 
   
   /*check if another thread is now higher priority */
   thread_test_preemption ();
@@ -486,6 +491,11 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+  t->base_priority = priority;          /* Saving the original priority */
+  list_init (&t->donations);          
+  t->waiting_lock = NULL;              
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -620,6 +630,38 @@ thread_test_preemption (void)
             thread_yield ();
         }
     }
+}
+
+/* Donates priority from one thread to another (Nested Donations with max depth 8(may be updated during testing depending on the system requirements)) */
+void thread_donate_priority (struct thread *t) {
+  int depth;
+  struct thread *curr = t;
+
+  for (depth = 0; depth < 8; depth++) {
+    if (curr->waiting_lock == NULL || curr->waiting_lock->holder == NULL)
+      break;
+
+    struct thread *holder = curr->waiting_lock->holder;
+    if (holder->priority < t->priority) {
+      holder->priority = t->priority;
+      curr = holder;
+    } else {
+      break;
+    }
+  }
+}
+
+/* Recalculates priority based on base_priority and donations list (the maximum donation) */
+void thread_update_priority (struct thread *t) {
+  t->priority = t->base_priority; // Starting with the original priority
+
+  if (!list_empty (&t->donations)) {
+    /* we used insert_sorted before, so the highest is at the front */
+    struct thread *highest_donor = list_entry (list_begin (&t->donations), 
+                                               struct thread, donation_elem);
+    if (highest_donor->priority > t->priority)
+      t->priority = highest_donor->priority;
+  }
 }
 
 
