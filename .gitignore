@@ -1,2 +1,10 @@
 .vscode/settings.json
 **/.DS_Store
+# Ignore IDE configuration folders
+.idea/
+.vscode/
+
+# Ignore compiled C object files and binaries (Very important for Pintos!)
+*.o
+*.bin
+build/
