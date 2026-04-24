@@ -362,14 +362,13 @@ int thread_get_nice(void)
 /* Returns 100 times the system load average. */
 int thread_get_load_avg(void)
 {
-  int load_avg_times_100 = MULTIPLY_FP_INT(load_avg, 100);
-  return FP_TO_INT_ROUND(load_avg_times_100);
+  return FP_TO_INT_ROUND(MULTIPLY_FP_INT(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu(void)
 {
-  return 100 * (thread_current()->recent_cpu);
+  return FP_TO_INT_ROUND(MULTIPLY_FP_INT(thread_current()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -463,18 +462,18 @@ init_thread(struct thread *t, const char *name, int priority)
   }
 
   t->magic = THREAD_MAGIC;
-  if (t == initial_thread) 
-    {
-      /* The very first thread gets 0 */
-      t->nice = 0;
-      t->recent_cpu = INT_TO_FP(0);
-    }
-  else 
-    {
-      /* All other threads inherit from the current running thread (Parent) */
-      t->nice = thread_current()->nice;
-      t->recent_cpu = thread_current()->recent_cpu;
-    }
+  if (t == initial_thread)
+  {
+    /* The very first thread gets 0 */
+    t->nice = 0;
+    t->recent_cpu = INT_TO_FP(0);
+  }
+  else
+  {
+    /* All other threads inherit from the current running thread (Parent) */
+    t->nice = thread_current()->nice;
+    t->recent_cpu = thread_current()->recent_cpu;
+  }
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
@@ -554,8 +553,8 @@ void thread_schedule_tail(struct thread *prev)
   }
 }
 
-
-void thread_mlfqs_update_current_thread(void){
+void thread_mlfqs_update_current_thread(void)
+{
   struct thread *cur = thread_current();
   if (cur != idle_thread)
   {
@@ -565,33 +564,32 @@ void thread_mlfqs_update_current_thread(void){
 
 void thread_mlfqs_update_priorities(void)
 {
-  
-    struct list_elem *e;
-    for ( e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    if (t != idle_thread)
     {
-      struct thread *t = list_entry (e, struct thread, allelem);
-      if (t!=idle_thread)
-      {
-        int fp_priority = SUBTRACT (
-                      SUBTRACT (INT_TO_FP(PRI_MAX), DIVIDE_FP_INT(t->recent_cpu, 4)), 
-                      INT_TO_FP(t->nice * 2)
-                  );
-        
-        t->priority = FP_TO_INT_TRUNCATE(fp_priority);
-        if (t->priority < PRI_MIN) t->priority = PRI_MIN;
-        if (t->priority > PRI_MAX) t->priority = PRI_MAX;
-      }
-      
+      int fp_priority = SUBTRACT(
+          SUBTRACT(INT_TO_FP(PRI_MAX), DIVIDE_FP_INT(t->recent_cpu, 4)),
+          INT_TO_FP(t->nice * 2));
+
+      t->priority = FP_TO_INT_TRUNCATE(fp_priority);
+      if (t->priority < PRI_MIN)
+        t->priority = PRI_MIN;
+      if (t->priority > PRI_MAX)
+        t->priority = PRI_MAX;
     }
-    if (!list_empty(&ready_list))
-    {
-      list_sort(&ready_list, cmp_thread_priority, NULL);
-    }
-    
-    
+  }
+  if (!list_empty(&ready_list))
+  {
+    list_sort(&ready_list, cmp_thread_priority, NULL);
+  }
 }
 
-void thread_mlfqs_update_every_seccond(void){
+void thread_mlfqs_update_every_seccond(void)
+{
   int ready_threads = list_size(&ready_list);
   if (thread_current() != idle_thread)
   {
@@ -599,14 +597,13 @@ void thread_mlfqs_update_every_seccond(void){
   }
   load_avg = ADD(MULTIPLY(DIVIDE(INT_TO_FP(59), INT_TO_FP(60)), load_avg), MULTIPLY(DIVIDE(INT_TO_FP(1), INT_TO_FP(60)), INT_TO_FP(ready_threads)));
   struct list_elem *e;
-  for ( e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
   {
-    struct thread *t = list_entry (e, struct thread, allelem);
-    if (t!=idle_thread)
+    struct thread *t = list_entry(e, struct thread, allelem);
+    if (t != idle_thread)
     {
       t->recent_cpu = ADD_FP_INT(MULTIPLY(DIVIDE(MULTIPLY_FP_INT(load_avg, 2), ADD_FP_INT(MULTIPLY_FP_INT(load_avg, 2), 1)), t->recent_cpu), t->nice);
     }
-    
   }
 }
 /* Schedules a new process.  At entry, interrupts must be off and

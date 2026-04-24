@@ -88,6 +88,10 @@ timer_elapsed(int64_t then)
    be turned on. */
 void timer_sleep(int64_t ticks)
 {
+  if (ticks <= 0)
+  {
+    return;
+  }
   ASSERT(intr_get_level() == INTR_ON);
   enum intr_level old_level = intr_disable();
 
@@ -173,10 +177,11 @@ timer_interrupt(struct intr_frame *args UNUSED)
   {
     struct thread *current = list_entry(iterator, struct thread, elem);
 
-    if (ticks <= current->WakeUpTime)
+    if (ticks >= current->WakeUpTime)
     {
-      thread_unblock(current);
+
       iterator = list_remove(iterator);
+      thread_unblock(current);
     }
     else
     {
