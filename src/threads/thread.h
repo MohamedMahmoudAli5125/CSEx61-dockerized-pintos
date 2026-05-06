@@ -84,15 +84,20 @@ typedef int tid_t;
 struct child_thread_status
 {
    /* data */
-   tid_t tid;                 /* Thread identifier. */
+   tid_t tid;                   /* Thread identifier. */
    struct semaphore load_sema;  /* Semaphore for parent-child synchronization */
    bool success_load;           /* Flag to indicate if the child process loaded successfully */
+
+   struct semaphore wait_sema;  
+   struct list_elem elem;
 };
 
 struct thread
 {
    /* Owned by thread.c. */
    tid_t tid;                 /* Thread identifier. */
+   tid_t waiting_on;          /* waiting on who child. */
+   int child_status;          /* the status of the child i waited on */
    enum thread_status status; /* Thread state. */
    char name[16];             /* Name (for debugging purposes). */
    uint8_t *stack;            /* Saved stack pointer. When the thread is switched, the registers are stored on the thread's stack*/
@@ -109,10 +114,10 @@ struct thread
    struct lock *waiting_lock;      /* The lock this thread is currently waiting for */
    
    struct list childrens;
+   struct child_thread_status *state;
 
    /* Shared between thread.c and synch.c. */
    struct list_elem elem; /* List element. */
-
    int64_t WakeUpTime;
 
 #ifdef USERPROG

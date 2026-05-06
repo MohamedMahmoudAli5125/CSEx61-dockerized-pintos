@@ -58,7 +58,7 @@ process_execute (const char *file_name)
     free(child_status);
     return TID_ERROR;
   }
-  list_push_back(&thread_current()->childrens , tid);
+  list_push_back(&thread_current()->childrens , &child_status->elem);
   sema_down(&child_status->load_sema);
   
   if(!child_status->success_load){
@@ -93,6 +93,7 @@ start_process (void *aux)
     status->tid = thread_current()->tid;
   }
   free(helper);
+  thread_current()->state = status;
   sema_up(&status->load_sema);
 
   /* If load failed, quit. */
@@ -124,7 +125,37 @@ start_process (void *aux)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  struct list_elem *e;
+  struct thread * current = thread_current();
+  int temp = 0;
+  
+  for (e = list_begin(&current->childrens); e != list_end(&current->childrens);e = list_next(e))
+  {
+      struct child_thread_status * state = list_entry(e,struct child_thread_status, elem);
+      if (state->tid == child_tid)
+      {
+        current->waiting_on = child_tid;
+        sema_init(&state->wait_sema, 0);
+        temp = 1;
+        sema_down(&state->wait_sema);
+        list_remove(&state->elem);
+        free(state);
+        break;
+      }    
+  }
+
+  free(e);
+  free(current);
+
+  if (temp == 0)
+  {
+    return -1;
+  }
+  else
+  {
+    return thread_current()->child_status;
+  }
+
 }
 
 /* Free the current process's resources. */
