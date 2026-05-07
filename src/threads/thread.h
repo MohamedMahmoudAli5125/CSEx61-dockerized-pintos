@@ -116,6 +116,12 @@ struct thread
    struct list childrens;
    struct child_thread_status *state;
 
+   // Each thread can edit a max amount of 128 files
+   // When the thread wants to edit a file, it edits it based on it's index in fdt
+   // FDT = File descriptor table, it's just a table of files that the thread can access.
+   // file is defined in src/filesys/file.c
+   struct file *fdt[128];
+
    /* Shared between thread.c and synch.c. */
    struct list_elem elem; /* List element. */
    int64_t WakeUpTime;

@@ -25,9 +25,16 @@ void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
 
+// Files are NOT thread safe in PintOs (2 threads could edit the same file at the same time).
+// So we define this lock, so each time a thread wants to access a file it must first aquire the lock
+static struct lock fs_lock;
+
 void syscall_init(void)
 {
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+
+  // Initialize the files lock
+  lock_init(&fs_lock);
 }
 
 static void
