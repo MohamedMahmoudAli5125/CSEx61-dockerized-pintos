@@ -186,7 +186,38 @@ bool remove(const char *file)
 
 int open(const char *file)
 {
-  // TODO
+  // Notice how here we use a char* (string) instead of an int fd
+  // This is because when we want to open a file we supply the fn with the file name
+  // This open function takes the file name and searches for it in the disk using filesys_open
+  // We then take the file and put it in the fdt so that in the other operations we don't have to;
+  // search for the file in the disk again, but instead we could just use the int fd.
+
+
+  lock_acquire(&fs_lock);
+  struct file* opened_file = filesys_open(file); // Search for file in disk
+
+  if (opened_file == NULL)
+  {
+    lock_release(&fs_lock);
+    return -1;
+  }
+
+  // Find an empty slot in the FDT (starting at 2, since 1 and 0 are reserved for STDIN and STDOUT)
+  struct thread* t = thread_current();
+  for (int i = 2; i < 128; i++)
+  {
+    if (t->fdt[i] == NULL)
+    {
+      t->fdt[i] = opened_file;
+      lock_release(&fs_lock);
+      return i; // We return the fd to the user (index in the fdt)
+    }
+  }
+
+  // If table is full
+  file_close(opened_file);
+  lock_release(&fs_lock);
+  return -1;
 }
 
 int filesize(int fd)
@@ -290,7 +321,18 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
-  // TODO
+
+  // OUT of range
+  // Can't close STDIN or STDOUT
+  if (fd < 2 || fd >= 128) return;
+
+
+  lock_acquire(&fs_lock);
+  if (thread_current()->fdt[fd] != NULL) {
+    file_close(thread_current()->fdt[fd]);
+    thread_current()->fdt[fd] = NULL;
+  }
+  lock_release(&fs_lock);
 }
 
 void check_valid_buffer (const void *buffer, unsigned size) 
