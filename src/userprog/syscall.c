@@ -196,12 +196,86 @@ int filesize(int fd)
 
 int read(int fd, void *buffer, unsigned size)
 {
-  // TODO
+
+  // Out of range
+  if (fd < 0 || fd >= 128) return -1;
+
+  // fs == 1 is STDOUT
+  // You can't read from STDOUT
+  if (fd == 1) return -1;
+
+  // fd == 0 is STDIN
+  // STDIN is usually the keyboard
+  if (fd == 0)
+  {
+
+    // Buffer is void*
+    // We want to store chars in buffer so we cast it to 8bit pointer
+    uint8_t *local_buffer = (uint8_t *) buffer;
+
+    // Read chars from STDIN
+    for (int i = 0; i < size; i++) {
+      // input_getc() waits for and reads a char
+      // defined in devices/input.h
+      local_buffer[i] = input_getc();
+    }
+
+    return size;
+  }
+
+  lock_acquire(&fs_lock);
+  struct file *f = thread_current()->fdt[fd];
+
+  if (f == NULL)
+  {
+    lock_release(&fs_lock);
+    return -1;
+  }
+
+  int bytes_read = file_read(f, buffer, size);
+  lock_release(&fs_lock);
+  return bytes_read;
 }
 
 int write(int fd, const void *buffer, unsigned size)
 {
-  // TODO
+  /*
+   *
+   * Return Value:
+   *    If success: return number of bytes written
+   *    If fail: return -1
+   */
+
+  // Out of range
+  if (fd < 0 || fd >= 128) return -1;
+
+  // fd == 1 is STDOUT
+  if (fd == 1)
+  {
+    // This fn is the one used by the kernal to actually write to STDOUT
+    // Defined in lib/kernal/stdio.h
+    putbuf(buffer, size);
+    return size;
+  }
+
+  // fd == 0 is STDIN
+  // You can't write to input!
+  if (fd == 0) return -1;
+
+  lock_acquire(&fs_lock);
+
+  // Retrieve the file that we want to write to
+  struct file *f = thread_current()->fdt[fd];
+
+  // Failed to read file
+  if (f == NULL)
+  {
+    lock_release(&fs_lock);
+    return -1;
+  }
+  int bytes_written = file_write(f, buffer, size);
+  lock_release(&fs_lock);
+  return bytes_written;
 }
 
 void seek(int fd, unsigned position)
